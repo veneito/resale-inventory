@@ -1,0 +1,44 @@
+# Push a tag like v0.1.0 and this attaches ready-to-run downloads to a GitHub Release.
+name: Release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - { os: ubuntu-latest, file: resale-inventory, asset: resale-inventory-linux-x64 }
+          - { os: ubuntu-24.04-arm, file: resale-inventory, asset: resale-inventory-linux-arm64 }
+          - { os: windows-latest, file: resale-inventory.exe, asset: resale-inventory-windows-x64.exe }
+          - { os: macos-latest, file: resale-inventory, asset: resale-inventory-macos-arm64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: cargo build --release --locked
+      - run: mv target/release/${{ matrix.file }} ${{ matrix.asset }}
+        shell: bash
+      - run: gh release create ${{ github.ref_name }} --generate-notes 2>/dev/null; gh release upload ${{ github.ref_name }} ${{ matrix.asset }} --clobber
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  desktop-app:
+    needs: build
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - run: cargo install tauri-cli --version "^2" --locked
+      - run: cargo tauri build
+        working-directory: app
+      - run: shopt -s nullglob; gh release upload ${{ github.ref_name }} target/release/bundle/*/*.{exe,dmg,AppImage} --clobber
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}

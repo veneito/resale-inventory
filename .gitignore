@@ -1,0 +1,7 @@
+/target/
+*.db
+*.db-*
+.env
+/app/gen/
+/.claude/
+/index.html

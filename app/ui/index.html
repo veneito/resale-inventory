@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resale Inventory</title>
+<style>
+  /* Same tokens as the main page (roDev Hub's DESIGN.md). */
+  :root { --bg:#1b1e23; --surface:#242830; --selected:#293b54; --border:#353b45; --text:#e5e9f0; --muted:#a8b1c0; --accent:#8bb8f4; --danger:#ffb9c4; color-scheme:dark; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:16px; font:13px/1.45 "Segoe UI", system-ui, -apple-system, sans-serif; background:var(--bg); color:var(--text); }
+  form { max-width:340px; margin:18vh auto; display:grid; gap:8px; }
+  h1 { font-size:20px; font-weight:600; margin:0 0 4px; }
+  p { color:var(--muted); margin:0 0 8px; }
+  input, button { font:inherit; min-height:32px; padding:6px 10px; border:1px solid var(--border); border-radius:4px; background:var(--surface); color:var(--text); }
+  input:focus-visible, button:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  button { background:var(--selected); border-color:var(--accent); font-weight:600; cursor:pointer; }
+  button:hover { background:#33496a; }
+  .err { color:var(--danger); min-height:1.2em; font-size:12px; }
+</style>
+</head>
+<body>
+<form id="f">
+  <h1>Connect to another server</h1>
+  <p>Enter the address of a Resale Inventory server, e.g. one on your home server. You'll log in on the next screen.
+     To go back to the inventory on this computer, use Server → This computer.</p>
+  <input name="url" type="url" placeholder="https://inventory.example.com" required autofocus>
+  <button>Connect</button>
+  <div class="err" id="err"></div>
+</form>
+<script>
+const f = document.getElementById('f');
+
+f.onsubmit = async e => {
+  e.preventDefault();
+  const url = f.url.value.trim().replace(/\/+$/, '');
+  const err = document.getElementById('err');
+  err.textContent = 'Connecting…';
+  try {
+    // A Resale Inventory server answers /manifest.json; this catches typos before we leave this page.
+    const r = await fetch(url + '/manifest.json');
+    if (!(await r.json()).name?.includes('Resale Inventory')) throw 0;
+  } catch { return err.textContent = "Couldn't reach a Resale Inventory server at that address."; }
+  // The app remembers this choice for next time (see app/src/main.rs).
+  location.replace(url);
+};
+</script>
+</body>
+</html>

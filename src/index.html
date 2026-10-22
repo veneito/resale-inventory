@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Inventory">
+<link rel="manifest" href="/manifest.json">
+<title>Resale Inventory</title>
+<style>
+  /* Colors, type and shapes follow roDev Hub's DESIGN.md: flat charcoal layers, 1px borders, 4px corners. */
+  :root {
+    --bg:#1b1e23; --rail:#15181d; --surface:#242830; --hover:#2d333d; --selected:#293b54;
+    --border:#353b45; --text:#e5e9f0; --muted:#a8b1c0; --accent:#8bb8f4; --danger:#ffb9c4; --sold:#9fdcaa;
+    --ui:13px; --control:32px; color-scheme: dark;
+  }
+  /* Phones: 16px inputs stop iOS from zooming, and taller controls are easier to tap. */
+  @media (pointer: coarse) { :root { --ui:16px; --control:44px; } }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:0 0 96px; font:var(--ui)/1.45 "Segoe UI", system-ui, -apple-system, sans-serif; background:var(--bg); color:var(--text); }
+  header { position:sticky; top:0; z-index:1; display:flex; align-items:center; justify-content:space-between; gap:8px; background:var(--rail); border-bottom:1px solid var(--border); padding:max(10px, env(safe-area-inset-top)) 16px 10px; }
+  .auto { width:auto; }
+  .item .body { flex:1; min-width:0; }
+  .item .quick { width:auto; flex:none; font-size:12px; }
+  .pill.stale { color:var(--danger); border-color:var(--danger); }
+  #qr { display:block; margin:8px auto; background:#fff; padding:8px; border-radius:4px; width:240px; height:240px; }
+  .url { text-align:center; font-family:Consolas, ui-monospace, monospace; color:var(--accent); word-break:break-all; }
+  ol { margin:0; padding-left:20px; color:var(--muted); }
+  h1 { font-size:20px; font-weight:600; margin:0; }
+  .wrap { max-width:760px; margin:0 auto; padding:16px; }
+  input, select, textarea, button { font:inherit; min-height:var(--control); padding:6px 10px; border:1px solid var(--border); border-radius:4px; background:var(--surface); color:var(--text); width:100%; }
+  input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, .item:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  button { background:var(--selected); border-color:var(--accent); color:var(--text); cursor:pointer; font-weight:600; }
+  button:hover { background:#33496a; }
+  button.ghost { background:transparent; border-color:var(--border); font-weight:400; }
+  button.ghost:hover { background:var(--hover); }
+  button.danger { color:var(--danger); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+  .row select { flex:1; }
+  #q { flex:3 1 220px; }
+  .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:16px; }
+  .stat { background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:8px 10px; }
+  .stat b { display:block; font-size:18px; font-weight:600; }
+  .stat span { color:var(--muted); font-size:12px; }
+  #list { border:1px solid var(--border); border-radius:4px; overflow:hidden; }
+  .item { display:flex; gap:12px; align-items:center; background:var(--surface); border-bottom:1px solid var(--border); padding:10px; cursor:pointer; }
+  .item:last-child { border-bottom:0; }
+  .item:hover { background:var(--hover); }
+  .item img, .item .noimg { width:56px; height:56px; border-radius:4px; object-fit:cover; flex:none; background:var(--bg); border:1px solid var(--border); }
+  .item .meta { color:var(--muted); font-size:12px; }
+  .empty { color:var(--muted); padding:24px; text-align:center; background:var(--surface); }
+  .pill { font-size:11px; padding:1px 6px; border-radius:4px; border:1px solid var(--border); color:var(--muted); }
+  .pill.Sold { color:var(--sold); border-color:var(--sold); }
+  .pill.Listed { color:var(--accent); border-color:var(--accent); }
+  #add { position:fixed; right:16px; bottom:max(16px, env(safe-area-inset-bottom)); width:auto; padding:0 18px; min-height:44px; }
+  dialog { border:1px solid var(--border); border-radius:4px; padding:16px; width:min(480px, calc(100% - 32px)); background:var(--bg); color:var(--text); }
+  dialog::backdrop { background:#000a; }
+  dialog form { display:grid; gap:8px; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  label { font-size:12px; color:var(--muted); }
+  #preview { max-width:100%; max-height:200px; border-radius:4px; border:1px solid var(--border); }
+  #login { max-width:320px; margin:20vh auto; padding:0 16px; display:grid; gap:8px; }
+  .err { color:var(--danger); min-height:1.2em; font-size:12px; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+
+<form id="login" hidden>
+  <h1 id="loginTitle">Resale Inventory</h1>
+  <p id="loginHint" class="meta"></p>
+  <input name="password" type="password" placeholder="Password" autocomplete="current-password" required>
+  <input name="confirm" type="password" placeholder="Type it again" autocomplete="new-password" hidden>
+  <button id="loginBtn">Log in</button>
+  <div class="err" id="loginErr"></div>
+</form>
+
+<main id="app" hidden>
+  <header><h1>Inventory</h1><button class="ghost auto" id="phoneBtn">Open on phone</button></header>
+  <div class="wrap">
+  <div class="stats">
+    <div class="stat"><b id="sListed">0</b><span>listed</span></div>
+    <div class="stat"><b id="sValue">$0</b><span>listed value</span></div>
+    <div class="stat"><b id="sProfit">$0</b><span>profit sold</span></div>
+  </div>
+  <div class="row">
+    <input id="q" type="search" placeholder="Search name or SKU">
+    <select id="fs" class="auto" aria-label="Status"><option value="">All</option><option>Unlisted</option><option>Listed</option><option>Sold</option></select>
+    <select id="sort" class="auto" aria-label="Sort">
+      <option value="new">Newest</option><option value="old">Listed longest</option>
+      <option value="hi">Price high</option><option value="lo">Price low</option>
+    </select>
+  </div>
+  <div id="list"></div>
+  </div>
+  <button id="add">+ Add item</button>
+</main>
+
+<dialog id="dlg">
+  <form id="f" method="dialog">
+    <input name="name" placeholder="Item name" required>
+    <div class="two">
+      <input name="sku" placeholder="SKU / bin">
+      <select name="status"><option>Unlisted</option><option>Listed</option><option>Sold</option></select>
+    </div>
+    <div class="two">
+      <div><label>Cost $</label><input name="cost" type="number" step="0.01" inputmode="decimal"></div>
+      <div><label>Price $</label><input name="price" type="number" step="0.01" inputmode="decimal"></div>
+    </div>
+    <div id="soldRow" hidden><label>Sold for $</label><input name="sold_price" type="number" step="0.01" inputmode="decimal"></div>
+    <select name="platform"><option>eBay</option><option>Facebook</option><option>eBay + Facebook</option></select>
+    <input name="url" type="url" placeholder="Listing link">
+    <textarea name="notes" rows="2" placeholder="Notes"></textarea>
+    <label>Photo</label>
+    <input id="photo" type="file" accept="image/*">
+    <img id="preview" hidden alt="">
+    <div class="err" id="formErr"></div>
+    <div class="two">
+      <button type="button" class="ghost" id="cancel">Cancel</button>
+      <button id="saveBtn">Save</button>
+    </div>
+    <div class="two" id="more" hidden>
+      <button type="button" class="ghost" id="dup">Duplicate</button>
+      <button type="button" class="ghost danger" id="del">Delete</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="soldDlg">
+  <form id="soldF" method="dialog">
+    <h1 id="soldTitle" style="font-size:16px"></h1>
+    <label>Sold for $</label>
+    <input name="sold_price" type="number" step="0.01" inputmode="decimal" required>
+    <div class="two">
+      <button type="button" class="ghost" onclick="soldDlg.close()">Cancel</button>
+      <button>Mark sold</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="phoneDlg">
+  <form method="dialog">
+    <h1 style="font-size:16px">Open on your phone</h1>
+    <div id="phoneBody"></div>
+    <button>Done</button>
+  </form>
+</dialog>
+
+<script>
+const $ = s => document.querySelector(s);
+const money = n => '$' + (+n || 0).toFixed(2);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+const DAY = 864e5;
+let items = [], editing = null, photoBlob = null, setupMode = false;
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, opts);
+  if (r.status === 401) { showLogin(); throw new Error('Please log in'); }
+  if (!r.ok) throw new Error('Server error ' + r.status);
+  return r.status === 204 ? null : r.json();
+}
+const sendJson = (method, body) => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+
+// First run shows "create a password"; afterwards a normal login.
+async function showLogin() {
+  $('#app').hidden = true; $('#login').hidden = false;
+  setupMode = (await (await fetch('/api/status')).json()).setup;
+  const f = $('#login');
+  $('#loginTitle').textContent = setupMode ? 'Welcome! Create a password' : 'Resale Inventory';
+  $('#loginHint').textContent = setupMode ? 'You\'ll use it to log in on this computer and your phone. At least 8 characters.' : '';
+  f.confirm.hidden = f.confirm.required = !setupMode;
+  f.password.autocomplete = setupMode ? 'new-password' : 'current-password';
+  $('#loginBtn').textContent = setupMode ? 'Create password' : 'Log in';
+  f.password.focus();
+}
+
+$('#login').onsubmit = async e => {
+  e.preventDefault();
+  const f = e.target, err = $('#loginErr');
+  if (setupMode && f.password.value.length < 8) return err.textContent = 'Use at least 8 characters.';
+  if (setupMode && f.password.value !== f.confirm.value) return err.textContent = 'The two passwords don\'t match.';
+  const r = await fetch(setupMode ? '/api/setup' : '/api/login', sendJson('POST', { password: f.password.value }));
+  if (!r.ok) return err.textContent = setupMode ? 'Couldn\'t save the password. Reload and try again.' : 'Wrong password';
+  f.reset(); err.textContent = ''; $('#login').hidden = true; load();
+};
+
+async function load() {
+  items = await api('/api/items');
+  $('#app').hidden = false;
+  render();
+}
+
+const stale = i => i.status === 'Listed' && i.listed_at && Date.now() - Date.parse(i.listed_at) > 30 * DAY;
+const SORTS = {
+  new: () => 0,
+  old: (a, b) => (a.listed_at || '9') < (b.listed_at || '9') ? -1 : 1,
+  hi: (a, b) => b.price - a.price,
+  lo: (a, b) => a.price - b.price,
+};
+
+function render() {
+  const q = $('#q').value.toLowerCase(), s = $('#fs').value;
+  const listed = items.filter(i => i.status === 'Listed'), sold = items.filter(i => i.status === 'Sold');
+  $('#sListed').textContent = listed.length;
+  $('#sValue').textContent = money(listed.reduce((a, i) => a + i.price, 0));
+  $('#sProfit').textContent = money(sold.reduce((a, i) => a + i.sold_price - i.cost, 0));
+  $('#list').innerHTML = items
+    .filter(i => (!s || i.status === s) && (i.name + ' ' + i.sku).toLowerCase().includes(q))
+    .sort(SORTS[$('#sort').value])
+    .map(i => `
+      <div class="item" data-id="${i.id}" tabindex="0" role="button">
+        ${i.has_photo ? `<img loading="lazy" src="/api/items/${i.id}/photo?v=${encodeURIComponent(i.updated)}" alt="">` : '<div class="noimg"></div>'}
+        <div class="body">
+          <b>${esc(i.name)}</b> <span class="pill ${esc(i.status)}">${esc(i.status)}</span>
+          ${stale(i) ? `<span class="pill stale">${Math.floor((Date.now() - Date.parse(i.listed_at)) / DAY)} days</span>` : ''}
+          <div class="meta">${esc(i.platform)}${i.sku ? ' · ' + esc(i.sku) : ''}</div>
+          <div class="meta">${i.status === 'Sold'
+            ? `sold ${money(i.sold_price)} · profit ${money(i.sold_price - i.cost)} · ${esc(i.sold_at)}`
+            : `cost ${money(i.cost)} → ${money(i.price)}`}</div>
+        </div>
+        ${i.status !== 'Sold' ? '<button class="ghost quick" data-sold>Sold</button>' : ''}
+      </div>`).join('') || '<div class="empty">No items yet. Use “+ Add item”.</div>';
+}
+
+$('#list').onclick = e => {
+  const el = e.target.closest('.item'); if (!el) return;
+  const item = items.find(i => i.id == el.dataset.id);
+  e.target.closest('[data-sold]') ? markSold(item) : open(item);
+};
+$('#list').onkeydown = e => { if (e.target.matches('.item') && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.target.click(); } };
+$('#q').oninput = $('#fs').onchange = $('#sort').onchange = render;
+$('#add').onclick = () => open(null);
+$('#cancel').onclick = () => $('#dlg').close();
+
+function markSold(item) {
+  editing = item;
+  $('#soldTitle').textContent = item.name;
+  $('#soldF').sold_price.value = item.price || '';
+  $('#soldDlg').showModal();
+}
+$('#soldF').onsubmit = async e => {
+  e.preventDefault();
+  await api(`/api/items/${editing.id}`, sendJson('PUT', { ...editing, status: 'Sold', sold_price: +e.target.sold_price.value || 0 }));
+  $('#soldDlg').close(); load();
+};
+
+const FIELDS = ['name', 'sku', 'status', 'cost', 'price', 'sold_price', 'platform', 'url', 'notes'];
+function open(item, copy = false) {
+  const f = $('#f'); f.reset(); editing = copy ? null : item; photoBlob = null;
+  $('#formErr').textContent = '';
+  for (const k of FIELDS) if (item) f[k].value = item[k] || '';
+  if (copy) { f.status.value = 'Unlisted'; f.url.value = ''; }
+  $('#soldRow').hidden = f.status.value !== 'Sold';
+  $('#preview').hidden = !editing?.has_photo;
+  if (editing?.has_photo) $('#preview').src = `/api/items/${item.id}/photo?v=${encodeURIComponent(item.updated)}`;
+  $('#more').hidden = !editing;
+  if (!$('#dlg').open) $('#dlg').showModal();
+  if (copy) f.name.select();
+}
+$('#f').status.onchange = e => {
+  $('#soldRow').hidden = e.target.value !== 'Sold';
+  if (e.target.value === 'Sold' && !$('#f').sold_price.value) $('#f').sold_price.value = $('#f').price.value;
+};
+$('#dup').onclick = () => open(editing, true);
+
+// Shrink phone photos to ~1200px JPEG before upload so the database stays small.
+$('#photo').onchange = async e => {
+  const file = e.target.files[0]; if (!file) return;
+  const img = await createImageBitmap(file);
+  const scale = Math.min(1, 1200 / Math.max(img.width, img.height));
+  const c = Object.assign(document.createElement('canvas'), { width: img.width * scale, height: img.height * scale });
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  photoBlob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.8));
+  $('#preview').src = URL.createObjectURL(photoBlob); $('#preview').hidden = false;
+};
+
+$('#f').onsubmit = async e => {
+  e.preventDefault();
+  const d = Object.fromEntries(new FormData(e.target));
+  const body = { ...d, cost: +d.cost || 0, price: +d.price || 0, sold_price: +d.sold_price || +d.price || 0 };
+  $('#saveBtn').disabled = true;
+  try {
+    const id = editing ? await api(`/api/items/${editing.id}`, sendJson('PUT', body)) : await api('/api/items', sendJson('POST', body));
+    if (photoBlob) await api(`/api/items/${id}/photo`, { method: 'PUT', headers: { 'Content-Type': 'image/jpeg' }, body: photoBlob });
+    $('#dlg').close(); await load();
+  } catch (err) { $('#formErr').textContent = err.message; }
+  $('#saveBtn').disabled = false;
+};
+
+$('#del').onclick = async () => {
+  if (!confirm(`Delete “${editing.name}”?`)) return;
+  await api(`/api/items/${editing.id}`, { method: 'DELETE' });
+  $('#dlg').close(); load();
+};
+
+// On this computer, point the phone at the home-network address; elsewhere (e.g. behind a tunnel) use this address.
+$('#phoneBtn').onclick = async () => {
+  const local = ['localhost', '127.0.0.1', 'tauri.localhost'].includes(location.hostname);
+  const url = local ? await api('/api/phone') : location.origin;
+  $('#phoneBody').innerHTML = url ? `
+    <img id="qr" src="/api/qr?text=${encodeURIComponent(url)}" alt="QR code for ${esc(url)}">
+    <p class="url">${esc(url)}</p>
+    <ol>
+      <li>Connect your phone to the same Wi-Fi${local ? '' : ' (or any network)'}.</li>
+      <li>Point the camera at the code and tap the link.</li>
+      <li>Log in, then tap Share → <b>Add to Home Screen</b>.</li>
+    </ol>` : '<p class="meta">This server only accepts connections from this computer, so phones can\'t reach it. Start it with RI_ADDR=0.0.0.0:8080 to allow your home network.</p>';
+  $('#phoneDlg').showModal();
+};
+
+load().catch(() => {});
+</script>
+</body>
+</html>

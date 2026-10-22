@@ -1,0 +1,8 @@
+{
+  "name": "Resale Inventory",
+  "short_name": "Inventory",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1b1e23",
+  "theme_color": "#15181d"
+}

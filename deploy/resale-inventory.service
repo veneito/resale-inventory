@@ -1,0 +1,17 @@
+# Example systemd unit for a Linux server.
+# Create your password in the browser after starting (or set RI_PASSWORD in /etc/resale-inventory.env), then:
+#   sudo cp resale-inventory.service /etc/systemd/system/ && sudo systemctl enable --now resale-inventory
+[Unit]
+Description=Resale Inventory
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/resale-inventory
+EnvironmentFile=-/etc/resale-inventory.env
+Environment=RI_DB=/var/lib/resale-inventory/inventory.db RI_ADDR=127.0.0.1:8080
+StateDirectory=resale-inventory
+DynamicUser=yes
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

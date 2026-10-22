@@ -1,0 +1,27 @@
+[package]
+name = "resale-inventory"
+description = "Tiny self-hosted inventory tracker for eBay and Facebook Marketplace resellers"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+license = "MIT"
+
+# The desktop app lives in app/; plain `cargo build` only builds the server.
+[workspace]
+members = [".", "app"]
+default-members = ["."]
+
+[dependencies]
+axum = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+argon2 = "0.6"
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+codegen-units = 1
