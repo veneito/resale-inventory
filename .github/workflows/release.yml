@@ -20,7 +20,7 @@ jobs:
       - run: cargo build --release --locked
       - run: mv target/release/${{ matrix.file }} ${{ matrix.asset }}
         shell: bash
-      - run: gh release create ${{ github.ref_name }} --generate-notes 2>/dev/null; gh release upload ${{ github.ref_name }} ${{ matrix.asset }} --clobber
+      - run: gh release create ${{ github.ref_name }} --generate-notes 2>/dev/null || true; gh release upload ${{ github.ref_name }} ${{ matrix.asset }} --clobber
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
